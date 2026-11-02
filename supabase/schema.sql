@@ -43,6 +43,9 @@ create trigger randevular_touch
 -- Yeni kayıt (sign up) kapalı tutulur; ekip üyeleri panelden davet edilir.
 alter table public.randevular enable row level security;
 
+-- Yeni projelerde tablo izinleri otomatik verilmeyebilir
+grant select, insert, update, delete on public.randevular to authenticated;
+
 drop policy if exists "Ekip okur" on public.randevular;
 drop policy if exists "Ekip ekler" on public.randevular;
 drop policy if exists "Ekip günceller" on public.randevular;
