@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#124a5c">
+<title>Randevu Defteri</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='5' width='26' height='24' rx='5' fill='%23124a5c'/><rect x='3' y='5' width='26' height='8' rx='4' fill='%23c2410c'/><text x='16' y='26' text-anchor='middle' font-family='Arial' font-weight='700' font-size='12' fill='white'>RD</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: ajanda düzeni — solda takvim ve filtreler, sağda koparmalı takvim yaprağı gibi tarih bloklu randevu listesi */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --sunk:#e8ecee; --line:#d5dcdf;
+  --fg:#16232a; --muted:#5b6b73;
+  --ink:#124a5c; --ink-soft:#dbe9ee; --stamp:#c2410c; --stamp-soft:#fbe6da;
+  --ok:#2f7d4f; --ok-soft:#dcefe3; --warn:#a16207; --warn-soft:#f6ecd2;
+  --shadow:0 1px 2px rgba(18,40,50,.06),0 6px 20px rgba(18,40,50,.06);
+  --f-display:"Bricolage Grotesque",system-ui,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0e171b; --surface:#152228; --sunk:#1b2b32; --line:#2a3d45;
+  --fg:#e5eef1; --muted:#93a6ae;
+  --ink:#7cc3d8; --ink-soft:#1c3a45; --stamp:#f08a5d; --stamp-soft:#3a2219;
+  --ok:#6cc690; --ok-soft:#18342a; --warn:#e2b35a; --warn-soft:#352b15;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25); color-scheme:dark}}
+
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+[hidden]{display:none!important}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px}
+.brand h1{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,4.5vw,40px);letter-spacing:-.02em;line-height:1;margin:0;text-wrap:balance}
+.brand p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.brand .today{font-family:var(--f-mono);font-size:12.5px;color:var(--ink);text-transform:uppercase;letter-spacing:.08em}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--stamp);border-color:var(--stamp)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn:disabled{opacity:.55;cursor:wait}
+.btn svg{width:16px;height:16px}
+.who-am-i{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.who-am-i b{color:var(--fg);font-weight:600;max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:2px}
+.stat:hover{border-color:var(--ink)}
+.stat[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.stat b{font-family:var(--f-display);font-size:28px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.stat.late b{color:var(--stamp)}
+@media (max-width:620px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+aside{display:flex;flex-direction:column;gap:16px;position:sticky;top:12px}
+@media (max-width:860px){aside{position:static}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.panel h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-head strong{font-family:var(--f-display);font-size:17px;font-weight:700}
+.cal-head button{border:0;background:transparent;cursor:pointer;width:30px;height:30px;border-radius:8px;color:var(--muted)}
+.cal-head button:hover{background:var(--sunk);color:var(--fg)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.cal .dow{font-size:11px;color:var(--muted);font-weight:600;padding:4px 0}
+.cal button{position:relative;aspect-ratio:1;max-width:100%;border:0;background:transparent;border-radius:8px;cursor:pointer;font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.cal button:hover{background:var(--sunk)}
+.cal button.out{color:var(--muted);opacity:.45}
+.cal button.today{box-shadow:inset 0 0 0 1.5px var(--ink);font-weight:600}
+.cal button.sel{background:var(--ink);color:var(--surface)}
+.cal button i{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);display:flex;gap:2px}
+.cal button i::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--stamp)}
+.cal button.sel i::before{background:var(--surface)}
+.cal-foot{display:flex;justify-content:space-between;margin-top:8px;font-size:13px}
+.linkbtn{border:0;background:none;color:var(--ink);font-weight:600;cursor:pointer;padding:2px 0}
+
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12.5px;font-weight:600;color:var(--muted)}
+input[type=text],input[type=search],input[type=date],input[type=time],input[type=tel],input[type=email],input[type=password],select,textarea{
+  width:100%;border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 11px;min-width:0}
+textarea{resize:vertical;min-height:70px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--ink-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink-soft);border-color:var(--ink);color:var(--ink)}
+
+main{display:flex;flex-direction:column;gap:22px;min-width:0}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.toolbar .search{flex:1 1 220px;position:relative}
+.toolbar .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+.toolbar .search input{padding-left:34px;background:var(--surface)}
+.filter-note{font-size:13.5px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.group{display:flex;flex-direction:column;gap:10px}
+.group-h{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.group-h h2{font-family:var(--f-display);font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
+.group-h small{font-family:var(--f-mono);color:var(--muted);font-size:12px}
+.group.late .group-h h2{color:var(--stamp)}
+
+.appt{display:grid;grid-template-columns:68px minmax(0,1fr) auto;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;align-items:start;box-shadow:var(--shadow)}
+.appt.done{opacity:.62}
+.appt.done .ttl{text-decoration:line-through;text-decoration-thickness:1px}
+.leaf{border-radius:10px;overflow:hidden;border:1px solid var(--line);text-align:center;background:var(--bg)}
+.leaf .m{background:var(--ink);color:var(--surface);font-size:10.5px;font-weight:700;letter-spacing:.1em;padding:3px 0;text-transform:uppercase}
+.appt.late .leaf .m{background:var(--stamp)}
+.leaf .d{font-family:var(--f-display);font-weight:800;font-size:26px;line-height:1.1;padding-top:3px;font-variant-numeric:tabular-nums}
+.leaf .w{font-size:11px;color:var(--muted);padding-bottom:4px;font-weight:600}
+.body{min-width:0;display:flex;flex-direction:column;gap:4px}
+.ttl{font-weight:700;font-size:16px;margin:0;overflow-wrap:anywhere}
+.meta{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13.5px;color:var(--muted)}
+.meta span{display:inline-flex;align-items:center;gap:5px;overflow-wrap:anywhere}
+.meta svg{width:14px;height:14px;flex:none}
+.meta .t{font-family:var(--f-mono);color:var(--fg);font-weight:600}
+.meta a{color:var(--ink);font-weight:600;text-decoration:none}
+.meta a:hover{text-decoration:underline}
+.note{font-size:13.5px;color:var(--fg);opacity:.85;margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.pill{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--sunk);color:var(--muted);letter-spacing:.02em}
+.pill.count{background:var(--ink-soft);color:var(--ink);font-family:var(--f-mono);font-weight:600}
+.pill.count.soon{background:var(--warn-soft);color:var(--warn)}
+.pill.count.late{background:var(--stamp-soft);color:var(--stamp)}
+.pill.count.ok{background:var(--ok-soft);color:var(--ok)}
+.by{font-size:12px;color:var(--muted)}
+.row-act{display:flex;flex-direction:column;gap:4px}
+.icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid transparent;background:transparent;cursor:pointer;display:grid;place-items:center;color:var(--muted)}
+.icon-btn:hover{background:var(--sunk);color:var(--fg)}
+.icon-btn.check[aria-pressed="true"]{color:var(--ok);background:var(--ok-soft)}
+.icon-btn svg{width:18px;height:18px}
+@media (max-width:480px){.appt{grid-template-columns:58px minmax(0,1fr)}.row-act{grid-column:1/-1;flex-direction:row;justify-content:flex-end;border-top:1px dashed var(--line);padding-top:6px}}
+
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:32px 20px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.empty h2{font-family:var(--f-display);margin:0;font-size:22px}
+.empty p{margin:0;color:var(--muted);max-width:46ch}
+
+.overlay{position:fixed;inset:0;background:rgba(10,20,25,.45);display:grid;place-items:center;z-index:50;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.modal{background:var(--surface);border-radius:16px;width:100%;max-width:560px;max-height:100%;overflow:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:14px}
+.modal h2{font-family:var(--f-display);margin:0;font-size:22px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+@media (max-width:480px){.form-grid{grid-template-columns:1fr}}
+.modal-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.modal-foot .r{display:flex;gap:8px;margin-left:auto}
+.err{color:var(--stamp);font-size:13px;margin:0}
+.ok-msg{color:var(--ok);font-size:13px;margin:0}
+.audit{font-size:12px;color:var(--muted);margin:0}
+
+/* giriş ekranı */
+.auth{min-height:calc(100vh - 68px);display:grid;place-items:center}
+.auth-card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.auth-card .leaf-top{background:var(--ink);color:var(--surface);padding:18px 22px;display:flex;justify-content:space-between;align-items:baseline}
+.auth-card .leaf-top b{font-family:var(--f-display);font-size:26px;font-weight:800;letter-spacing:-.02em}
+.auth-card .leaf-top span{font-family:var(--f-mono);font-size:12px;opacity:.85;text-transform:uppercase;letter-spacing:.08em}
+.auth-card form{padding:22px;display:flex;flex-direction:column;gap:14px}
+.auth-card p.lead{margin:0;color:var(--muted);font-size:14px}
+.auth-card .btn.primary{width:100%;padding:11px}
+.setup{max-width:640px;margin:40px auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px}
+.setup h1{font-family:var(--f-display);margin:0 0 8px}
+.setup code{font-family:var(--f-mono);background:var(--sunk);padding:1px 6px;border-radius:5px;font-size:13px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;z-index:60;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
+.status-line{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.status-line .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.status-line .dot.live{background:var(--ok)}
+@media (prefers-reduced-motion:no-preference){.appt{transition:border-color .15s}.appt:hover{border-color:var(--ink)}}
+</style>
+</head>
+<body>
+
+<!-- Kurulum eksikse -->
+<div class="setup" id="setupView" hidden>
+  <h1>Kurulum tamamlanmamış</h1>
+  <p><code>config.js</code> dosyasına Supabase proje adresini ve <code>anon</code> anahtarını yazın. Adımlar <code>README.md</code> dosyasında.</p>
+</div>
+
+<!-- Giriş -->
+<div class="auth" id="authView" hidden>
+  <div class="auth-card">
+    <div class="leaf-top"><b>Randevu Defteri</b><span id="authDate"></span></div>
+
+    <form id="loginForm" novalidate>
+      <p class="lead">Ekip hesabınızla giriş yapın.</p>
+      <div class="field"><label for="l_email">E-posta</label><input type="email" id="l_email" autocomplete="username" required></div>
+      <div class="field"><label for="l_pass">Şifre</label><input type="password" id="l_pass" autocomplete="current-password" required></div>
+      <p class="err" id="loginErr" hidden></p>
+      <button class="btn primary" type="submit" id="loginBtn">Giriş yap</button>
+      <button class="linkbtn" type="button" id="forgotBtn">Şifremi unuttum</button>
+    </form>
+
+    <form id="forgotForm" novalidate hidden>
+      <p class="lead">E-posta adresinizi yazın, şifre yenileme bağlantısı gönderelim.</p>
+      <div class="field"><label for="r_email">E-posta</label><input type="email" id="r_email" autocomplete="username" required></div>
+      <p class="err" id="forgotErr" hidden></p>
+      <p class="ok-msg" id="forgotOk" hidden></p>
+      <button class="btn primary" type="submit" id="forgotSend">Bağlantı gönder</button>
+      <button class="linkbtn" type="button" id="backToLogin">Girişe dön</button>
+    </form>
+
+    <form id="setPassForm" novalidate hidden>
+      <p class="lead" id="setPassLead">Hesabınız için bir şifre belirleyin.</p>
+      <div class="field"><label for="n_pass">Yeni şifre</label><input type="password" id="n_pass" autocomplete="new-password" minlength="8" required></div>
+      <div class="field"><label for="n_pass2">Yeni şifre (tekrar)</label><input type="password" id="n_pass2" autocomplete="new-password" minlength="8" required></div>
+      <p class="err" id="setPassErr" hidden></p>
+      <button class="btn primary" type="submit" id="setPassBtn">Şifreyi kaydet</button>
+    </form>
+  </div>
+</div>
+
+<!-- Uygulama -->
+<div class="wrap" id="appView" hidden>
+  <header class="top">
+    <div class="brand">
+      <div class="today" id="todayLabel"></div>
+      <h1>Randevu Defteri</h1>
+      <p>İleri tarihli randevuları ekle, kaç gün kaldığını gör, geçenleri kapat.</p>
+    </div>
+    <div class="actions">
+      <span class="who-am-i"><b id="meEmail"></b><button class="linkbtn" type="button" id="logoutBtn">Çıkış</button></span>
+      <button class="btn" id="icsAll" type="button" title="Yaklaşan randevuları telefon/Outlook takvimine aktarmak için .ics dosyası indir">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>Takvime aktar
+      </button>
+      <button class="btn primary" id="addBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Yeni randevu
+      </button>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="grid">
+    <aside>
+      <div class="panel">
+        <div class="cal-head">
+          <button type="button" id="prevM" aria-label="Önceki ay">‹</button>
+          <strong id="calTitle"></strong>
+          <button type="button" id="nextM" aria-label="Sonraki ay">›</button>
+        </div>
+        <div class="cal" id="cal"></div>
+        <div class="cal-foot">
+          <button class="linkbtn" type="button" id="goToday">Bugüne dön</button>
+          <button class="linkbtn" type="button" id="clearDay" hidden>Gün seçimini kaldır</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Durum</h3>
+        <div class="chips" id="statusChips"></div>
+        <h3 style="margin-top:14px">Tür</h3>
+        <div class="chips" id="catChips"></div>
+        <h3 style="margin-top:14px">Ekleyen</h3>
+        <div class="chips" id="byChips"></div>
+      </div>
+      <div class="status-line"><span class="dot" id="liveDot"></span><span id="storeLine">Bağlanıyor…</span></div>
+    </aside>
+
+    <main>
+      <div class="toolbar">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="q" placeholder="Kişi, firma, yer veya not ara">
+        </div>
+      </div>
+      <div class="filter-note" id="filterNote" hidden></div>
+      <div id="list"><div class="empty"><h2>Randevular yükleniyor…</h2></div></div>
+    </main>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <form class="modal" id="form" novalidate>
+    <h2 id="formTitle">Yeni randevu</h2>
+    <div class="form-grid">
+      <div class="field full"><label for="f_title">Konu *</label><input type="text" id="f_title" placeholder="Örn. Keşif ölçüsü, teklif sunumu, tanışma ziyareti" maxlength="120"></div>
+      <div class="field"><label for="f_date">Tarih *</label><input type="date" id="f_date"></div>
+      <div class="field"><label for="f_time">Saat</label><input type="time" id="f_time"></div>
+      <div class="field"><label for="f_who">Kişi / firma</label><input type="text" id="f_who" maxlength="100"></div>
+      <div class="field"><label for="f_phone">Telefon</label><input type="tel" id="f_phone" maxlength="60"></div>
+      <div class="field"><label for="f_place">Yer / adres</label><input type="text" id="f_place" maxlength="160"></div>
+      <div class="field"><label for="f_cat">Tür</label><select id="f_cat"></select></div>
+      <div class="field"><label for="f_remind">Hatırlatma (takvim dosyasında)</label>
+        <select id="f_remind"><option value="0">Yok</option><option value="60">1 saat önce</option><option value="1440" selected>1 gün önce</option><option value="4320">3 gün önce</option><option value="10080">1 hafta önce</option></select></div>
+      <div class="field"><label for="f_status">Durum</label>
+        <select id="f_status"><option value="bekliyor">Bekliyor</option><option value="tamam">Tamamlandı</option><option value="iptal">İptal</option></select></div>
+      <div class="field full"><label for="f_note">Not</label><textarea id="f_note" maxlength="2000" placeholder="Götürülecek evrak, hazırlanacak teklif vb."></textarea></div>
+    </div>
+    <p class="audit" id="formAudit" hidden></p>
+    <p class="err" id="formErr" hidden></p>
+    <div class="modal-foot">
+      <button class="btn danger" type="button" id="delBtn" hidden>Sil</button>
+      <div class="r">
+        <button class="btn ghost" type="button" id="cancelBtn">Vazgeç</button>
+        <button class="btn primary" type="submit" id="saveBtn">Kaydet</button>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
